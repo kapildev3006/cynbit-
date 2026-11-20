@@ -196,6 +196,7 @@ export const ContactDetailsSchema = z.object({
  * Complete submission schema wrapper.
  */
 export const PublicSubmissionSchema = z.object({
+  formVersionId: z.string().optional(),
   serviceSlug: z.string().min(1, "Service selection is required"),
   projectType: z.string().optional(),
   idempotencyKey: z.string().uuid("Invalid idempotency key format"),

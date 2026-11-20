@@ -98,6 +98,41 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // 6b. Check for stale form version (Requirement #2)
+    if (parsed.data.formVersionId && parsed.data.formVersionId !== String(publishedForm._id)) {
+      const sanitizedQuestions = (publishedForm.questions || [])
+        .filter((q) => q.active)
+        .sort((a, b) => a.order - b.order)
+        .map((q) => ({
+          id: q.id,
+          key: q.key,
+          label: q.label,
+          step: q.step,
+          helpText: q.helpText || "",
+          placeholder: q.placeholder || "",
+          type: q.type,
+          required: q.required,
+          order: q.order,
+          serviceSlugs: q.serviceSlugs,
+          options: q.options || [],
+          validation: q.validation || {},
+          visibleIf: q.visibleIf || undefined,
+        }));
+
+      return NextResponse.json(
+        {
+          error: "The inquiry form has been updated to a newer version. Questions have been refreshed.",
+          staleForm: true,
+          latestForm: {
+            formVersionId: String(publishedForm._id),
+            versionNumber: publishedForm.versionNumber,
+            questions: sanitizedQuestions,
+          },
+        },
+        { status: 409 }
+      );
+    }
+
     // 7. Dynamic validation against active questions (evaluates conditional visibility, rejects hidden field answers)
     const dynamicResult = validateDynamicAnswers(
       publishedForm.questions,

@@ -64,6 +64,9 @@ export default function InquiryWizard() {
   // Idempotency key generated once on mount
   const [idempotencyKey, setIdempotencyKey] = useState<string>("");
 
+  // Form version tracking (for 409 conflict detection)
+  const [formVersionId, setFormVersionId] = useState<string>("");
+
   // Dynamic questions fetched from active published FormVersion
   const [questions, setQuestions] = useState<FormQuestion[]>([]);
 
@@ -101,6 +104,7 @@ export default function InquiryWizard() {
         const res = await fetch("/api/forms/active");
         if (res.ok) {
           const data = await res.json();
+          setFormVersionId(data.formVersionId || "");
           setQuestions(data.questions || []);
         } else {
           console.warn("Could not load dynamic questions from API, fallback to default state.");
@@ -224,6 +228,7 @@ export default function InquiryWizard() {
       }
 
       const payload = {
+        formVersionId: formVersionId || undefined,
         serviceSlug,
         projectType: projectType || undefined,
         idempotencyKey,
@@ -251,6 +256,23 @@ export default function InquiryWizard() {
       });
 
       const data = await res.json();
+
+      if (res.status === 409 && data.staleForm && data.latestForm) {
+        setFormVersionId(data.latestForm.formVersionId || "");
+        setQuestions(data.latestForm.questions || []);
+        const validIds = new Set((data.latestForm.questions || []).map((q: any) => q.id));
+        setAnswers((prev) => {
+          const kept: Record<string, any> = {};
+          for (const [k, v] of Object.entries(prev)) {
+            if (validIds.has(k)) kept[k] = v;
+          }
+          return kept;
+        });
+        setSubmitError(
+          "The inquiry form was updated by our engineering team with new questions. Your existing answers have been preserved. Please review the updated questions and submit."
+        );
+        return;
+      }
 
       if (!res.ok) {
         throw new Error(data.error || "Failed to submit inquiry. Please try again.");

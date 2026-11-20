@@ -422,39 +422,51 @@ async function runSeed() {
   }
   console.log(`Seeded ${templates.length} message templates.`);
 
-  // 5. Seed Initial Admin User
-  const adminEmail = (process.env.ADMIN_SEED_EMAIL || "admin@cynbit.in").toLowerCase().trim();
-  const adminPassword = process.env.ADMIN_SEED_PASSWORD || "Admin@Cynbit2026!";
-  const passwordHash = bcrypt.hashSync(adminPassword, 10);
+  // 5. Seed Initial Admin User (Credentials sourced strictly from environment)
+  let adminUser: any = null;
+  const adminEmail = process.env.ADMIN_SEED_EMAIL?.toLowerCase().trim();
+  const adminPassword = process.env.ADMIN_SEED_PASSWORD;
 
-  const adminUser = await User.findOneAndUpdate(
-    { email: adminEmail },
-    {
-      email: adminEmail,
-      name: "Cynbit Administrator",
-      passwordHash,
-      role: "ADMIN",
-      active: true,
-    },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
-  );
-  console.log(`Admin user ensured: ${adminEmail} (credentials securely hashed).`);
+  if (adminEmail && adminPassword) {
+    const passwordHash = bcrypt.hashSync(adminPassword, 10);
+    adminUser = await User.findOneAndUpdate(
+      { email: adminEmail },
+      {
+        email: adminEmail,
+        name: "Cynbit Administrator",
+        passwordHash,
+        role: "ADMIN",
+        active: true,
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    console.log("Admin user account synchronized (credentials sourced securely from environment).");
+  } else {
+    console.log("Notice: ADMIN_SEED_EMAIL and ADMIN_SEED_PASSWORD not set in environment. Skipping admin creation.");
+  }
 
-  // Also seed a default MEMBER user for role testing
-  const memberEmail = "lead-engineer@cynbit.in";
-  const memberPasswordHash = bcrypt.hashSync("Member@Cynbit2026!", 10);
-  const memberUser = await User.findOneAndUpdate(
-    { email: memberEmail },
-    {
-      email: memberEmail,
-      name: "Lead Systems Engineer",
-      passwordHash: memberPasswordHash,
-      role: "MEMBER",
-      active: true,
-    },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
-  );
-  console.log(`Team member user ensured: ${memberEmail}.`);
+  // Seed optional team member user only if explicit environment variables are set
+  let memberUser: any = null;
+  const memberEmail = process.env.SEED_MEMBER_EMAIL?.toLowerCase().trim();
+  const memberPassword = process.env.SEED_MEMBER_PASSWORD;
+
+  if (memberEmail && memberPassword) {
+    const memberPasswordHash = bcrypt.hashSync(memberPassword, 10);
+    memberUser = await User.findOneAndUpdate(
+      { email: memberEmail },
+      {
+        email: memberEmail,
+        name: "Systems Engineer",
+        passwordHash: memberPasswordHash,
+        role: "MEMBER",
+        active: true,
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    console.log("Team member account synchronized (sourced from SEED_MEMBER_EMAIL).");
+  } else {
+    console.log("Notice: SEED_MEMBER_EMAIL and SEED_MEMBER_PASSWORD not set. Skipping member creation.");
+  }
 
   // 6. Seed Demo Inquiries if --demo flag is present
   const isDemoRun = process.argv.includes("--demo");
@@ -673,7 +685,7 @@ async function runSeed() {
       const idempotencyKey = `demo-key-${i + 1}-${Date.now()}`;
       const normalizedPhone = normalizeToE164(item.phone);
 
-      const assignedUserId = i % 2 === 0 ? adminUser._id : memberUser._id;
+      const assignedUserId = i % 2 === 0 ? (adminUser?._id || memberUser?._id) : (memberUser?._id || adminUser?._id);
 
       // Realistic answers snapshot
       const answersSnapshot = [
@@ -722,31 +734,31 @@ async function runSeed() {
         },
         answers: answersSnapshot,
         status: item.status,
-        assignedTo: assignedUserId,
+        assignedTo: assignedUserId || undefined,
         statusHistory: [
           {
             from: "NEW",
             to: item.status,
-            userId: adminUser._id,
+            userId: assignedUserId || undefined,
             at: new Date(Date.now() - (15 - i) * 86400000 + 3600000),
           },
         ],
         notes: [
           {
             text: `Initial intake logged for ${item.company}. Client prefers communication via ${item.preferredContact}.`,
-            userId: adminUser._id,
+            userId: assignedUserId || undefined,
             createdAt: new Date(Date.now() - (15 - i) * 86400000 + 1800000),
           },
         ],
         communications:
-          item.status !== "NEW"
+          item.status !== "NEW" && assignedUserId
             ? [
                 {
                   type: item.preferredContact === "WHATSAPP" ? "WHATSAPP" : "EMAIL",
                   outcome: item.status === "CONVERTED" ? "CALL_BOOKED" : "REPLIED",
                   note: "Followed up regarding technical architecture and budget estimate.",
                   message: `Outreach to ${item.name} regarding reference ${refId}`,
-                  userId: adminUser._id,
+                  userId: assignedUserId,
                   at: new Date(Date.now() - (15 - i) * 86400000 + 7200000),
                 },
               ]
@@ -756,12 +768,6 @@ async function runSeed() {
             type: "CREATED",
             detail: `Inquiry submitted with reference ID ${refId}`,
             at: new Date(Date.now() - (15 - i) * 86400000),
-          },
-          {
-            type: "ASSIGNED",
-            detail: `Assigned to ${i % 2 === 0 ? "Administrator" : "Lead Systems Engineer"}`,
-            userId: adminUser._id,
-            at: new Date(Date.now() - (15 - i) * 86400000 + 600000),
           },
         ],
         searchFields: {

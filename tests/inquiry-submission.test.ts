@@ -11,7 +11,7 @@ vi.mock("@/lib/security/rate-limiter", () => ({
 }));
 
 vi.mock("@/lib/models/Inquiry", () => {
-  const mockInquiryConstructor = vi.fn().mockImplementation(function (data) {
+  const mockInquiryConstructor = vi.fn().mockImplementation(function (this: any, data: any) {
     Object.assign(this, data);
     this.save = vi.fn().mockResolvedValue(this);
   });

@@ -110,12 +110,12 @@ const FormVersionSchema = new Schema<IFormVersion>(
 // Partial unique indexes to strictly enforce at most one PUBLISHED and one DRAFT version
 FormVersionSchema.index(
   { status: 1 },
-  { unique: true, partialFilterExpression: { status: "PUBLISHED" } }
+  { name: "uniq_published_status", unique: true, partialFilterExpression: { status: "PUBLISHED" } }
 );
 
 FormVersionSchema.index(
   { status: 1 },
-  { unique: true, partialFilterExpression: { status: "DRAFT" } }
+  { name: "uniq_draft_status", unique: true, partialFilterExpression: { status: "DRAFT" } }
 );
 
 export const FormVersion: Model<IFormVersion> =

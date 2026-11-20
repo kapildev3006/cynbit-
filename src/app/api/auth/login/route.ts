@@ -4,7 +4,7 @@ import { z } from "zod";
 import { connectToDatabase } from "@/lib/db";
 import { User } from "@/lib/models/User";
 import { signToken } from "@/lib/auth/jwt";
-import { SESSION_COOKIE_NAME } from "@/lib/auth/session";
+import { SESSION_COOKIE_NAME, validateOrigin } from "@/lib/auth/session";
 import { checkRateLimit } from "@/lib/security/rate-limiter";
 import { hasNoSqlInjectionKeys } from "@/lib/security/sanitize";
 
@@ -17,6 +17,10 @@ const LoginSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    if (!(await validateOrigin(req))) {
+      return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
+    }
+
     const rawBody = await req.json();
 
     if (hasNoSqlInjectionKeys(rawBody)) {

@@ -17,19 +17,33 @@ export async function getSession(): Promise<SessionPayload | null> {
 
 /**
  * Validates Origin header for state-changing admin requests (CSRF mitigation).
+ * Accepts optional NextRequest or falls back to next/headers.
  */
-export async function validateOrigin(): Promise<boolean> {
-  const headersList = await headers();
-  const origin = headersList.get("origin");
-  const host = headersList.get("host");
+export async function validateOrigin(req?: Request | { headers: Headers }): Promise<boolean> {
+  let origin: string | null = null;
+  let host: string | null = null;
 
+  if (req && "headers" in req) {
+    origin = req.headers.get("origin");
+    host = req.headers.get("host");
+  } else {
+    try {
+      const headersList = await headers();
+      origin = headersList.get("origin");
+      host = headersList.get("host");
+    } catch {
+      // In non-request environments
+    }
+  }
+
+  // If origin is not provided, allow server-to-server or test runners
   if (!origin) {
-    // Some server-to-server or test environments omit origin
     return true;
   }
 
   try {
     const originUrl = new URL(origin);
+    // When port is present on host (e.g. localhost:3000), compare host directly
     return originUrl.host === host;
   } catch {
     return false;

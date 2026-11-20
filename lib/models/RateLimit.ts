@@ -22,9 +22,6 @@ const RateLimitSchema = new Schema<IRateLimit>(
   }
 );
 
-// TTL index on createdAt
-RateLimitSchema.index({ createdAt: 1 }, { expireAfterSeconds: 60 });
-
 export const RateLimit: Model<IRateLimit> =
   mongoose.models.RateLimit ||
   mongoose.model<IRateLimit>("RateLimit", RateLimitSchema);
